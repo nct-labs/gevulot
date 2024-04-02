@@ -49,8 +49,8 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.DOCKER_REGISTRY }}/cumpsd/${{ env.PROJECT_NAME }}:latest
-            ${{ env.DOCKER_REGISTRY }}/cumpsd/${{ env.PROJECT_NAME }}:v${{ env.BUILD_PREFIX }}.${{ github.run_number }}
+            ${{ env.DOCKER_REGISTRY }}/nct-labs/${{ env.PROJECT_NAME }}:latest
+            ${{ env.DOCKER_REGISTRY }}/nct-labs/${{ env.PROJECT_NAME }}:v${{ env.BUILD_PREFIX }}.${{ github.run_number }}
                         
       - name: Create Release
         id: create_release
@@ -64,4 +64,4 @@ jobs:
           prerelease: true
           body: |
             ${{ github.event.head_commit.message }}
-            Packages available at https://github.com/CumpsD/gevulot/pkgs/container/gevulot-node
+            Packages available at https://github.com/nct-labs/gevulot/pkgs/container/gevulot-node

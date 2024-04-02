@@ -1,4 +1,4 @@
-version: 3.7
+version: "3.7"
 
 services:
   database:
@@ -11,11 +11,11 @@ services:
       - POSTGRES_USER=gevulot
       - POSTGRES_PASSWORD=gevulot
       - POSTGRES_DB=gevulot
-    ports:
-      - "5432:5432"
+    #ports:
+    #  - "5432:5432"
     network_mode: host
   node:
-    image: quay.io/gevulot/node:latest
+    image: gevulot-node:latest
     privileged: true
     restart: always
     depends_on:
@@ -23,10 +23,15 @@ services:
     volumes:
       - ./data/node:/var/lib/gevulot:z
     environment:
+      - RUST_LOG=warn,gevulot=debug,sqlx=error
+      - GEVULOT_ACL_WHITELIST_URL=https://gevulot.com/acl/devnet
+      - GEVULOT_JSON_RPC_LISTEN_ADDR=0.0.0.0:9944
+      - GEVULOT_P2P_DISCOVERY_ADDR=34.88.251.176:9999
+      #- GEVULOT_PSK_PASSPHRASE="<coordinated pre-shared key for P2P network>"
       - GEVULOT_DB_URL=postgres://gevulot:gevulot@127.0.0.1/gevulot
     devices:
       - /dev/vsock:rw
-      - /dev/kvm:rw
-    ports:
-      - "9944:9944"
+    #  - /dev/kvm:rw
+    #ports:
+    #  - "9944:9944"
     network_mode: host

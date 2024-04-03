@@ -9,7 +9,6 @@ on:
 env:
   DOCKER_REGISTRY: ghcr.io
   BUILD_PREFIX: "1.0"
-  PROJECT_NAME: gevulot
   
 jobs:
   build:
@@ -39,19 +38,49 @@ jobs:
           echo "Flags:     ${{ steps.buildx.outputs.flags }}"
           echo "Platforms: ${{ steps.buildx.outputs.platforms }}"
 
-      - name: Build and push
+      - name: Build and push gevulot-crates
         uses: docker/build-push-action@v5.3.0
         with:
           context: .
-          file: Containerfile-${{ env.PROJECT_NAME }}
+          file: Containerfile-gevulot-crates
           build-args: |
             "BUILD_NUMBER=${{ env.BUILD_PREFIX }}.${{ github.run_number }}"
           platforms: linux/amd64
           push: true
           tags: |
-            ${{ env.DOCKER_REGISTRY }}/nct-labs/${{ env.PROJECT_NAME }}:latest
-            ${{ env.DOCKER_REGISTRY }}/nct-labs/${{ env.PROJECT_NAME }}:v${{ env.BUILD_PREFIX }}.${{ github.run_number }}
-                        
+            ${{ env.DOCKER_REGISTRY }}/nct-labs/gevulot-crates:latest
+            ${{ env.DOCKER_REGISTRY }}/nct-labs/gevulot-crates:v${{ env.BUILD_PREFIX }}.${{ github.run_number }}
+
+      - name: Copy binaries
+        run: |
+          docker run --rm -it -v ./data/crates:/tmp/crates:z gevulot-crates:latest cp -R /target/release/{gevulot,gevulot-cli,gevulot-e2e-tests,prover,verifier} /tmp/crates/
+
+      - name: Build and push gevulot-cli
+        uses: docker/build-push-action@v5.3.0
+        with:
+          context: .
+          file: Containerfile-gevulot-cli
+          build-args: |
+            "BUILD_NUMBER=${{ env.BUILD_PREFIX }}.${{ github.run_number }}"
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/nct-labs/gevulot-cli:latest
+            ${{ env.DOCKER_REGISTRY }}/nct-labs/gevulot-cli:v${{ env.BUILD_PREFIX }}.${{ github.run_number }}
+             
+      - name: Build and push gevulot
+        uses: docker/build-push-action@v5.3.0
+        with:
+          context: .
+          file: Containerfile-gevulot
+          build-args: |
+            "BUILD_NUMBER=${{ env.BUILD_PREFIX }}.${{ github.run_number }}"
+          platforms: linux/amd64
+          push: true
+          tags: |
+            ${{ env.DOCKER_REGISTRY }}/nct-labs/gevulot:latest
+            ${{ env.DOCKER_REGISTRY }}/nct-labs/gevulot:v${{ env.BUILD_PREFIX }}.${{ github.run_number }}
+
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1.1.4

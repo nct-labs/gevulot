@@ -20,6 +20,21 @@
 * `ops image create -n -c manifest/verifier.json`
 * `data/crates/gevulot-e2e-tests -p ~/.ops/images/prover -v ~/.ops/images/verifier -k data/prover/prover.pki`
 
+* `data/crates/gevulot-cli calculate-hash --file ~/.ops/images/prover` (*d43b43f872ffb9bf9e6276dcff5fe8d6d39bc2f34961631a6893d44f02f2eec1*)
+* `data/crates/gevulot-cli calculate-hash --file ~/.ops/images/verifier` (*cce6ea5604f3e51b46f80989d94ab77b91f6214f2d865e2dee4fc6aee553fe5b*)
+
+```bash
+data/crates/gevulot-cli --jsonurl "http://api.devnet.gevulot.com:9944" --keyfile data/prover/prover.pki \
+deploy \
+--name "Simple Gevulot test prover & verifier" \
+--prover d43b43f872ffb9bf9e6276dcff5fe8d6d39bc2f34961631a6893d44f02f2eec1 \
+--provername '#testprover' \
+--proverimgurl 'https://github.com/nct-labs/gevulot/raw/main/assets/prover' \
+--verifier cce6ea5604f3e51b46f80989d94ab77b91f6214f2d865e2dee4fc6aee553fe5b \
+--verifiername '#testverifier' \
+--verifierimgurl 'https://github.com/nct-labs/gevulot/raw/main/assets/verifier'
+```
+
 ## Debugging
 
 ### Vsock enabled?

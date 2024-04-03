@@ -26,7 +26,8 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
 COPY ./crates/node/migrations /migrations
 
 RUN mkdir -p /var/lib/gevulot
-RUN /gevulot generate node-key
+
+# RUN /gevulot generate key --key-file /var/lib/gevulot/node.key
 
 CMD ["run"]
 ENTRYPOINT ["/gevulot"]

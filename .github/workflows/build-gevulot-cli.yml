@@ -1,4 +1,4 @@
-name: Build Gevulot Node
+name: Build Gevulot CLI
 
 on:
   workflow_dispatch:
@@ -9,7 +9,7 @@ on:
 env:
   DOCKER_REGISTRY: ghcr.io
   BUILD_PREFIX: "1.0"
-  PROJECT_NAME: gevulot-node
+  PROJECT_NAME: gevulot-cli
   
 jobs:
   build:
@@ -43,7 +43,7 @@ jobs:
         uses: docker/build-push-action@v5.3.0
         with:
           context: .
-          file: Containerfile
+          file: Containerfile-${{ env.PROJECT_NAME }}
           build-args: |
             "BUILD_NUMBER=${{ env.BUILD_PREFIX }}.${{ github.run_number }}"
           platforms: linux/amd64
@@ -64,4 +64,4 @@ jobs:
           prerelease: true
           body: |
             ${{ github.event.head_commit.message }}
-            Packages available at https://github.com/nct-labs/gevulot/pkgs/container/gevulot-node
+            Packages available at https://github.com/nct-labs/gevulot/pkgs/container/${{ env.PROJECT_NAME }}

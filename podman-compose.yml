@@ -15,7 +15,7 @@ services:
     #  - "5432:5432"
     network_mode: host
   node:
-    image: gevulot-node:latest
+    image: gevulot:latest
     privileged: true
     restart: always
     depends_on:

@@ -2,8 +2,10 @@
 
 ## Steps
 
-* `build.sh` - Create the Docker image
-* `create-key.sh` - Create the Gevulot Node Key
+* `build-gevulot.sh` - Create the gevulot Docker image
+* `build-gevulot-cli.sh` - Create the gevulot-cli Docker image
+* `create-node-key.sh` - Create the Gevulot Node Key
+* `create-prover-key.sh` - Create the Gevulot Prover Key
 * `run.sh` - Start the Gevulot Node
 
 ## Debugging

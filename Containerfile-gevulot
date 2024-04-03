@@ -1,21 +1,4 @@
-FROM rust:1-bookworm
-
-COPY ./Cargo.* ./
-COPY ./crates ./crates
-
-# Add .git to crates/node in order to build version metadata into binary.
-COPY ./.git ./crates/node/.git
-
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-  libssl-dev \
-  protobuf-compiler
-
-RUN cargo build --features="node-binary" --release
-
 FROM debian:bookworm
-
-# Copy Gevulot node bin from earlier build step.
-COPY --from=0 target/release/gevulot /gevulot
 
 # Install QEMU.
 RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
@@ -23,6 +6,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
   curl \
   qemu-system
 
+COPY ./data/crates/gevulot /gevulot
 COPY ./crates/node/migrations /migrations
 
 RUN mkdir -p /var/lib/gevulot

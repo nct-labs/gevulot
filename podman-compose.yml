@@ -26,7 +26,7 @@ services:
       - RUST_LOG=warn,gevulot=debug,sqlx=error
       - GEVULOT_ACL_WHITELIST_URL=https://gevulot.com/acl/devnet
       - GEVULOT_JSON_RPC_LISTEN_ADDR=0.0.0.0:9944
-      - GEVULOT_P2P_DISCOVERY_ADDR=34.88.251.176:9999
+      #- GEVULOT_P2P_DISCOVERY_ADDR=34.88.251.176:9999
       #- GEVULOT_PSK_PASSPHRASE="<coordinated pre-shared key for P2P network>"
       - GEVULOT_DB_URL=postgres://gevulot:gevulot@127.0.0.1/gevulot
     devices:

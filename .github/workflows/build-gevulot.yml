@@ -53,7 +53,7 @@ jobs:
 
       - name: Copy binaries
         run: |
-          docker run --rm -v ./data/crates:/tmp/crates:z gevulot-crates:latest cp -R /target/release/{gevulot,gevulot-cli,gevulot-e2e-tests,prover,verifier} /tmp/crates/
+          docker run --rm -v ./data/crates:/tmp/crates:z ghcr.io/nct-labs/gevulot-crates:latest cp -R /target/release/{gevulot,gevulot-cli,gevulot-e2e-tests,prover,verifier} /tmp/crates/
 
       - name: Build and push gevulot-cli
         uses: docker/build-push-action@v5.3.0

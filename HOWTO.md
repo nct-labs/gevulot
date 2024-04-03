@@ -15,6 +15,11 @@
   * `sudo docker exec -it gevulot_node_1 /gevulot peer 047925563dec5a4599bee153150638941ef4db8cd45acf803c6f683315b6e4815514fa5baae752e262ecc053ae12ec08854837da82ea36cc0c2d6ae17e696924bf whitelist`
   * `sudo docker exec -it gevulot_node_1 /gevulot peer 04e56589098957635019ea645fd166dbdb99dcadc03563b5d774da41274d4a06d9cfb5615e5a0ee30d43468f40913bc31cd5b4c59a7f7305d19eb1b1c0919566eb whitelist`
 
+* Copy `prover` and `verifier` to `crates/tests/e2e-tests/`
+* `ops image create -n -c manifest/prover.json`
+* `ops image create -n -c manifest/verifier.json`
+* `data/crates/gevulot-e2e-tests -p ~/.ops/images/prover -v ~/.ops/images/verifier -k data/prover/prover.pki`
+
 ## Debugging
 
 ### Vsock enabled?
@@ -32,4 +37,18 @@ $ file /dev/vsock
 /dev/vsock: character special (10/59)
 $ file /dev/vhost-vsock
 /dev/vhost-vsock: character special (10/241)
+```
+
+### Ops not building?
+
+> ops image create -n -c ./manifest/verifier.json
+> stat manifest/%!:(MISSING) no such file or directory
+
+```bash
+git clone https://github.com/nanovms/ops.git
+cd ops
+sudo dnf install go
+make deps
+make build
+/home/user/src/ops/ops image create -n -c ./manifest/prover.json
 ```

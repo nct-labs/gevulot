@@ -7,7 +7,6 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
   qemu-system
 
 COPY ./data/crates/gevulot-cli /gevulot-cli
-COPY ./crates/node/migrations /migrations
 
 RUN mkdir -p /var/lib/gevulot
 

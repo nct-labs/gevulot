@@ -2,6 +2,7 @@ mod program_manager;
 mod resource_manager;
 
 use crate::cli::Config;
+use crate::metrics;
 use crate::storage::Database;
 use crate::txvalidation;
 use crate::txvalidation::CallbackSender;
@@ -13,6 +14,7 @@ use crate::vmm::qemu::Qemu;
 use crate::vmm::vm_server::grpc;
 use crate::vmm::vm_server::TaskManager;
 use crate::vmm::vm_server::VMServer;
+use crate::watchdog::HealthCheckSignal;
 use crate::workflow::{WorkflowEngine, WorkflowError};
 use crate::{
     mempool::Mempool,
@@ -37,6 +39,7 @@ use std::{
 use systemstat::ByteSize;
 use systemstat::Platform;
 use systemstat::System;
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::{
     sync::{Mutex, RwLock},
@@ -197,7 +200,7 @@ impl Scheduler {
         }
     }
 
-    pub async fn run(&self) -> Result<()> {
+    pub async fn run(&self, watchdog_sender: mpsc::Sender<HealthCheckSignal>) -> Result<()> {
         'SCHEDULING_LOOP: loop {
             // Reap terminated tasks & VMs.
             self.reap_zombies().await;
@@ -229,6 +232,7 @@ impl Scheduler {
 
                             // Return the popped program_id back to pending queue.
                             state.pending_programs.push_back((tx_hash, program_id));
+                            metrics::TX_SCHEDULING_REQUEUED.inc();
                             continue 'SCHEDULING_LOOP;
                         }
                         Err(e) => {
@@ -239,18 +243,32 @@ impl Scheduler {
                             );
                             // Return the popped program_id back to pending queue.
                             state.pending_programs.push_back((tx_hash, program_id));
+                            metrics::TX_SCHEDULING_REQUEUED.inc();
                             continue 'SCHEDULING_LOOP;
                         }
                     }
                 }
             }
 
-            let mut task = match self.pick_task().await {
-                Some(t) => {
+            if let Err(err) = watchdog_sender
+                .send(HealthCheckSignal::SchedulerLoopOk)
+                .await
+            {
+                tracing::error!("Watchdog channel send return an error:{err}");
+            }
+
+            let (mut task, mempool_size) = match self.pick_task().await {
+                (Some(t), size) => {
                     tracing::debug!("task {}/{} scheduled for running", t.id, t.tx);
-                    t
+                    (t, size)
                 }
-                None => {
+                (None, size) => {
+                    if let Err(err) = watchdog_sender
+                        .send(HealthCheckSignal::SchedulerMempoolLen(size))
+                        .await
+                    {
+                        tracing::error!("Watchdog channel send return an error:{err}");
+                    }
                     sleep(Duration::from_millis(100)).await;
                     continue;
                 }
@@ -277,6 +295,13 @@ impl Scheduler {
                 }
             }
 
+            if let Err(err) = watchdog_sender
+                .send(HealthCheckSignal::SchedulerMempoolLen(mempool_size))
+                .await
+            {
+                tracing::error!("Watchdog channel send return an error:{err}");
+            }
+
             // Push the task into program's work queue.
             let mut state = self.state.lock().await;
             if let Some(program_task_queue) = state.task_queue.get_mut(&task.tx) {
@@ -286,7 +311,6 @@ impl Scheduler {
                 queue.push_back((task.clone(), Instant::now()));
                 state.task_queue.insert(task.tx, queue);
             }
-
             // Start the program.
             match state
                 .program_manager
@@ -313,6 +337,7 @@ impl Scheduler {
                     // The task is already pending in program's work queue. Push program ID
                     // to pending programs queue to wait available resources.
                     state.pending_programs.push_back((task.tx, task.program_id));
+                    metrics::TX_SCHEDULING_REQUEUED.inc();
                     tracing::warn!("task {} rescheduled: {}", task.id.to_string(), err);
                     continue;
                 }
@@ -320,7 +345,7 @@ impl Scheduler {
         }
     }
 
-    async fn pick_task(&self) -> Option<Task> {
+    async fn pick_task(&self) -> (Option<Task>, usize) {
         let state = self.state.lock().await;
 
         // Acquire write lock.
@@ -328,7 +353,7 @@ impl Scheduler {
 
         // Check if next tx is ready for processing?
 
-        match mempool.next() {
+        let res = match mempool.next() {
             Some(tx) => match self.workflow_engine.next_task(&tx).await {
                 Ok(res) => res,
                 Err(e) if e.is::<WorkflowError>() => {
@@ -354,7 +379,8 @@ impl Scheduler {
                 }
             },
             None => None,
-        }
+        };
+        (res, mempool.size())
     }
 
     async fn reap_zombies(&self) {
@@ -476,6 +502,11 @@ impl TaskManager for Scheduler {
                 running_task.task_started.elapsed().as_secs()
             );
 
+            // NOTE: The transaction execution time measurement is not logged
+            // here as it doesn't represent the real time the tx took to execute
+            // and timeout value would only mess the statistics of valid run
+            // times.
+
             tracing::debug!("terminating VM running tx {}", tx_hash);
 
             if let Some(program_handle) = state.running_vms.remove(&tx_hash) {
@@ -522,11 +553,18 @@ impl TaskManager for Scheduler {
 
         let mut state = self.state.lock().await;
         if let Some(running_task) = state.running_tasks.remove(&tx_hash) {
+            let task_run_time = running_task.task_started.elapsed();
             tracing::info!(
                 "task of Tx {} finished in {}sec",
                 running_task.task.tx,
-                running_task.task_started.elapsed().as_secs()
+                task_run_time.as_secs()
             );
+
+            let kind = match running_task.task.kind {
+                TaskKind::Proof => "proof",
+                TaskKind::Verification => "verification",
+                _ => "unknown",
+            };
 
             if let Err(err) = self.database.mark_tx_executed(&running_task.task.tx).await {
                 tracing::error!(
@@ -590,6 +628,12 @@ impl TaskManager for Scheduler {
                             );
                         }
                     };
+
+                    // Log the execution time.
+                    metrics::TX_EXECUTION_TIME_COLLECTOR
+                        .with_label_values(&[kind, "success"])
+                        .observe(task_run_time.as_millis() as f64);
+
                     tracing::info!("Submit result Tx created:{}", tx.hash.to_string());
 
                     // Move tx file from execution Tx path to new Tx path
@@ -604,6 +648,11 @@ impl TaskManager for Scheduler {
                     })?;
                 }
                 grpc::task_result_request::Result::Error(error) => {
+                    // Log the execution time.
+                    metrics::TX_EXECUTION_TIME_COLLECTOR
+                        .with_label_values(&[kind, "failure"])
+                        .observe(task_run_time.as_millis() as f64);
+
                     tracing::warn!("Error during Tx:{tx_hash} execution:{error:?}");
                 }
             }

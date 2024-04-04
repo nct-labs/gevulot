@@ -31,12 +31,14 @@ use types::{transaction::Validated, Hash, Transaction};
 
 mod cli;
 mod mempool;
+mod metrics;
 mod networking;
 mod rpc_server;
 mod scheduler;
 mod storage;
 mod txvalidation;
 mod vmm;
+mod watchdog;
 mod workflow;
 
 use mempool::Mempool;
@@ -181,6 +183,15 @@ impl workflow::TransactionStore for storage::Database {
 async fn run(config: Arc<Config>) -> Result<()> {
     let node_key = read_node_key(&config.node_key_file)?;
 
+    // Register metrics counters.
+    metrics::register_metrics();
+
+    if let Some(http_metrics_bind_addr) = config.http_metrics_listen_addr {
+        // Start HTTP metrics server.
+        metrics::serve_metrics(http_metrics_bind_addr).await?;
+        tracing::info!("listening for metrics at {http_metrics_bind_addr}");
+    }
+
     let database = Arc::new(Database::new(&config.db_url).await?);
 
     // Launch the ACL whitelist syncing early in the startup.
@@ -209,7 +220,8 @@ async fn run(config: Arc<Config>) -> Result<()> {
     //To show to idea. Should use your config definition
     let new_validated_tx_receiver: Arc<RwLock<dyn ValidatedTxReceiver>> = if !config.no_execution {
         let mempool = Arc::new(RwLock::new(Mempool::new(database.clone()).await?));
-
+        let scheduler_watchdog_sender =
+            watchdog::start_healthcheck(config.http_healthcheck_listen_addr).await?;
         let scheduler = scheduler::start_scheduler(
             config.clone(),
             database.clone(),
@@ -220,7 +232,7 @@ async fn run(config: Arc<Config>) -> Result<()> {
         .await;
 
         // Run Scheduler in its own task.
-        tokio::spawn(async move { scheduler.run().await });
+        tokio::spawn(async move { scheduler.run(scheduler_watchdog_sender).await });
         mempool
     } else {
         struct ArchiveMempool(Arc<Database>);
